@@ -1,0 +1,15 @@
+{
+  "_comment": "Maps scope name → list of repo-relative path patterns. Patterns ending with / are directory prefixes; others are fnmatch globs (where * also crosses /). Used by docs/agent-notes/README.md (humans) and .claude/hooks/scope-notes-reminder.py (machine). KEEP PATTERNS DISJOINT — the hook adds every matching scope, so overlapping globs produce double reminders. When adding a scope, add it here AND list it in README.md's index. cloudflare/ and aws/ are pre-wired for when those root modules land; until the dirs exist the hook simply never fires for them.",
+  "ovh": [
+    "ovh/"
+  ],
+  "cloudflare": [
+    "cloudflare/"
+  ],
+  "aws": [
+    "aws/"
+  ],
+  "ci": [
+    ".github/workflows/"
+  ]
+}
