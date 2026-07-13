@@ -1,0 +1,38 @@
+# Dependency version checks. Dependabot opens PRs (which run the normal plan CI) when a
+# newer version is available. It updates *constraints*, not lockfiles-only:
+#   - terraform      -> module source versions + provider `version` pins in versions.tf
+#   - github-actions -> action `uses:` versions in .github/workflows/
+# PRs land on a branch -> plan runs -> you review/merge (same gate as everything else).
+version: 2
+updates:
+  # Terraform modules + provider constraints, across every root module under aws/.
+  - package-ecosystem: "terraform"
+    directories:
+      - "/aws/**"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      terraform:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - "dependencies"
+      - "terraform"
+
+  # GitHub Actions used by the reusable + per-provider workflows.
+  - package-ecosystem: "github-actions"
+    directories:
+      - "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore(ci)"
+    labels:
+      - "dependencies"
+      - "github-actions"
