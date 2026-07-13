@@ -1,0 +1,34 @@
+# ---- Terraform ----
+# Working dirs and plugin caches.
+**/.terraform/*
+
+# State and plan artifacts — never commit these (state can contain secrets).
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfplan.*
+
+# Crash logs.
+crash.log
+crash.*.log
+
+# Local CLI config / overrides (env-specific, not shared).
+.terraformrc
+terraform.rc
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# NOTE: intentionally NOT ignored:
+#   - .terraform.lock.hcl  -> committed for reproducible provider versions in CI
+#   - *.tfvars             -> our tfvars hold only non-secret inputs and are committed
+#                             (secrets come from CI/OIDC, per CLAUDE.md). Do not add *.tfvars here.
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
