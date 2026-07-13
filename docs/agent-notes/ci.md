@@ -35,7 +35,12 @@ conventions. Provider-specific resource decisions live in that provider's note (
   Applies run inside the **`prod` GitHub Environment** (approval gate) → their OIDC subject is
   `environment:prod`, which the role's trust must allow (plans use `pull_request`). For OVH/CF,
   credentials come from repo **secrets** as `TF_VAR_*` (no OIDC path) + scoped AWS creds for the S3 backend.
-- Pin action versions (`@v4`, `@v3`) and Terraform (`TF_VERSION`, `1.10.5`; must be ≥ 1.10).
+- Pin action versions (major moving tags) and Terraform (`TF_VERSION`, `1.10.5`; must be ≥ 1.10).
+  Current: `actions/checkout@v7`, `aws-actions/configure-aws-credentials@v6`,
+  `hashicorp/setup-terraform@v4` (bumped 2026-07-13 off the Node20-deprecated majors).
+- **Dependabot** (`.github/dependabot.yml`) watches `terraform` (module + provider constraints
+  under `/aws/**`) and `github-actions` (workflow `uses:`), weekly, grouped, PRs labelled
+  `dependencies`. Its PRs run the normal plan CI and merge through the same gate.
 - `concurrency` per ref, `cancel-in-progress: false` — never interrupt an apply.
 
 ## Open questions / pending decisions
@@ -46,6 +51,9 @@ conventions. Provider-specific resource decisions live in that provider's note (
 - Posting the PR plan as a comment (workflow logs it today).
 
 ## Recent changes log
+- 2026-07-13 (PR #4): bumped actions to latest majors (checkout v7, configure-aws-credentials v6,
+  setup-terraform v4) resolving the Node20 warning; added `.github/dependabot.yml` (terraform +
+  github-actions). Also root `.gitignore` + billing cost-allocation-tag apply fix (see [[aws]]).
 - 2026-07-13 (PR #3): first live CI run — `plan (billing)` green through OIDC → proved
   bootstrap + deploy role + S3 backend end-to-end. Enabled `main` branch protection (PR-only,
   enforce_admins). Moved `git push` from settings deny → allow. Node20-deprecation warning on
