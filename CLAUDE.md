@@ -60,6 +60,10 @@ state for ALL providers, keyed `<provider>/<component>/<env>/terraform.tfstate`.
 - **Agents never run `terraform apply` / `destroy`** (denied in `.claude/settings.json`).
   Produce the plan; the human applies. Same spirit as the `git push` deny — the agent goes
   right up to the irreversible step and stops.
+- **`main` is never committed to directly — all changes land via a merged PR.** Work on a
+  feature branch, open a PR, let CI plan, merge to apply. If a commit ends up on local `main`,
+  move it to a branch (`git switch -c <branch>` then `git branch -f main origin/main`) before
+  pushing. CI enforces this shape: plan on PR, apply on push to `main` (= a merge).
 
 ## How CI works here
 
