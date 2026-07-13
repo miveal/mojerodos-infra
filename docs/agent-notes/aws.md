@@ -22,6 +22,11 @@ shared with [[ci]].
 - **`aws/billing/`** (us-east-1 provider) — monthly cost budget ($20, alerts→`dariusz89k@gmail.com`),
   Cost Anomaly Detection (immediate, ≥$5 impact), cost-allocation-tag activation for our tag keys.
   No `Owner` tag (dropped while solo); billing `alert_email` is notification-only, not a tag.
+  **First apply (PR #3 merge) FAILED** on the cost-allocation-tag discovery lag (see gotcha):
+  budget applied; anomaly monitor + tag activation did not. **Fixed** by gating activation behind
+  `activate_cost_allocation_tags` (bool, default `false`) — first apply skips it; flip `true` in a
+  follow-up apply once keys are discovered (>24h). Re-apply after that fix creates the anomaly
+  monitor + subscription too.
 - `.github/workflows/aws.yml` + `_terraform.yml` — changed-leaf matrix, OIDC, prod approval gate.
 - Both roots pass `terraform validate` (via a temp TF 1.10.5 binary — see gotcha). Cross-
   platform `.terraform.lock.hcl` committed (linux_amd64 + darwin).
@@ -63,14 +68,18 @@ shared with [[ci]].
 ## Open questions / pending decisions
 - ~~Whether to migrate `aws/bootstrap` state local→S3~~ DONE 2026-07-13 (backend block added,
   `init -migrate-state -force-copy`, verified no-drift).
-- Cost-allocation-tag activation may fail on a brand-new account until tag keys are discovered
-  (~24h after first tagged resource exists) — may need a billing re-apply. See gotcha.
+- **Re-enable cost-allocation tags:** set `activate_cost_allocation_tags = true` (billing) and
+  re-apply once >24h have passed since bootstrap's tagged resources existed (bootstrap applied
+  2026-07-13, so on/after ~2026-07-14). Until then it stays `false` or the apply fails.
 - Repo rename to `mojerodos-infra`: CONFIRMED done on GitHub (`homelab-infra` now redirects to
   `mojerodos-infra`). Local `git remote` still points at the old `homelab-infra` SSH URL — needs
   `git remote set-url origin git@github.com:miveal/mojerodos-infra.git` (redirect keeps it working
   meanwhile). Attempted 2026-07-11 but the harness auto-denied the change (user hadn't named it).
 
 ## Recent changes log
+- 2026-07-13 (PR #4): billing apply failed on cost-allocation-tag discovery lag → gated
+  activation behind `activate_cost_allocation_tags` (default false). Bumped CI actions to latest
+  majors, added root `.gitignore` (folded in `aws/.gitignore`) and Dependabot (terraform + actions).
 - 2026-07-13 (`f882ef0`, wt): Applied `aws/bootstrap` (human, admin creds); added `backend "s3"`
   to bootstrap `versions.tf` and migrated state local→S3 (`init -migrate-state -force-copy`).
   `plan` clean. Terraform now 1.15.8 locally (was 1.6.5). GitHub repo rename confirmed. Still

@@ -21,3 +21,14 @@ variable "cost_allocation_tag_keys" {
   type        = list(string)
   default     = ["Project", "Component", "Environment", "ManagedBy", "Repository"]
 }
+
+variable "activate_cost_allocation_tags" {
+  description = <<-EOT
+    Whether to activate cost-allocation tag keys. AWS only lets a key be activated AFTER it has
+    been seen on a billed resource (~24h discovery lag), so this MUST be false on a brand-new
+    account or the apply fails with "Tag keys not found". Flip to true in a follow-up apply once
+    the keys have been discovered (>24h after the first tagged resource exists).
+  EOT
+  type        = bool
+  default     = false
+}

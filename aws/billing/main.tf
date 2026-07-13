@@ -69,11 +69,12 @@ resource "aws_ce_anomaly_subscription" "service" {
 }
 
 # Activate our tag keys as cost-allocation tags so Cost Explorer can group spend by them.
-# NOTE: AWS only lets you activate a tag key after it has been *seen* on a resource
-# (~24h discovery lag). On a brand-new account this may fail until bootstrap/other
-# components have applied and their tags are discovered — re-apply billing if so.
+# GATED: AWS only lets you activate a tag key after it has been *seen* on a billed resource
+# (~24h discovery lag), so on a brand-new account activating immediately fails with
+# "Tag keys not found". Keep activate_cost_allocation_tags=false for the first apply; flip it
+# true in a follow-up apply once the keys are discovered (>24h after first tagged resource).
 resource "aws_ce_cost_allocation_tag" "this" {
-  for_each = toset(var.cost_allocation_tag_keys)
+  for_each = var.activate_cost_allocation_tags ? toset(var.cost_allocation_tag_keys) : toset([])
 
   tag_key = each.value
   status  = "Active"
