@@ -14,6 +14,12 @@ conventions. Provider-specific resource decisions live in that provider's note (
 - **`aws.yml`** — caller. `detect` job diffs changed files → JSON list of changed leaves (any
   `aws/*` dir with an S3 backend, excluding `bootstrap`); `plan` matrix on PRs; `apply` matrix
   on push to `main`, `max-parallel: 1`, gated behind the **`prod` Environment** (manual approval).
+- **VALIDATED LIVE 2026-07-13** on PR #3: `detect` → `plan (billing)` passed green — OIDC role
+  assumption + S3 backend init + plan all work end-to-end; `apply` correctly skipped on the PR.
+- **`main` is branch-protected** (GitHub): PR required before merge, `enforce_admins: true` (even
+  the owner can't push direct), force-push + deletion blocked, 0 required approvals (solo repo —
+  GitHub blocks self-approval; owner merges manually). Agent `git push` allowed in settings.json
+  (direct-to-main is stopped server-side, not by a client deny).
 - No OVH / Cloudflare workflows yet.
 
 ## Key files
@@ -40,6 +46,10 @@ conventions. Provider-specific resource decisions live in that provider's note (
 - Posting the PR plan as a comment (workflow logs it today).
 
 ## Recent changes log
+- 2026-07-13 (PR #3): first live CI run — `plan (billing)` green through OIDC → proved
+  bootstrap + deploy role + S3 backend end-to-end. Enabled `main` branch protection (PR-only,
+  enforce_admins). Moved `git push` from settings deny → allow. Node20-deprecation warning on
+  `checkout@v4`/`configure-aws-credentials@v4`/`setup-terraform@v3` (non-blocking; bump later).
 - 2026-07-11 (`f882ef0`): reworked AWS CI from a single flat job into `_terraform.yml` (reusable)
   + `aws.yml` (changed-leaf matrix) with the `prod` Environment approval gate. Established the
   reusable-workflow pattern for future providers.
