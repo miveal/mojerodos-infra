@@ -1,0 +1,95 @@
+name: aws
+
+# Detect which AWS root modules (leaves) changed, then plan (PR) or apply (main) each.
+# aws/bootstrap/** is excluded — it is applied manually, once, with admin creds.
+on:
+  pull_request:
+    paths:
+      - "aws/**"
+      - "!aws/bootstrap/**"
+      - ".github/workflows/aws.yml"
+      - ".github/workflows/_terraform.yml"
+  push:
+    branches: [main]
+    paths:
+      - "aws/**"
+      - "!aws/bootstrap/**"
+      - ".github/workflows/aws.yml"
+      - ".github/workflows/_terraform.yml"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: aws-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      leaves: ${{ steps.detect.outputs.leaves }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: detect
+        name: Detect changed leaves
+        run: |
+          set -euo pipefail
+          # A leaf = a root module (dir with an S3 backend) under aws/, excluding bootstrap.
+          mapfile -t all_leaves < <(grep -rl 'backend "s3"' aws --include='versions.tf' \
+            | xargs -r -n1 dirname | sed 's|^aws/||' | grep -v '^bootstrap$' | sort -u)
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+          else
+            base="${{ github.event.before }}"
+          fi
+          # Fall back to previous commit if the base sha is missing/unfetchable.
+          if [ -z "$base" ] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            base="$(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)"
+          fi
+          changed="$(git diff --name-only "$base" "${{ github.sha }}")"
+
+          selected=()
+          # A change to the workflows themselves re-runs every leaf.
+          if echo "$changed" | grep -qE '^\.github/workflows/(aws|_terraform)\.yml$'; then
+            selected=("${all_leaves[@]}")
+          else
+            for leaf in "${all_leaves[@]}"; do
+              if echo "$changed" | grep -q "^aws/${leaf}/"; then selected+=("$leaf"); fi
+            done
+          fi
+
+          json="$(printf '%s\n' "${selected[@]:-}" | grep -v '^$' | jq -R . | jq -sc .)"
+          echo "leaves=$json" >> "$GITHUB_OUTPUT"
+          echo "Selected leaves: $json"
+
+  plan:
+    needs: detect
+    if: github.event_name == 'pull_request' && needs.detect.outputs.leaves != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        leaf: ${{ fromJSON(needs.detect.outputs.leaves) }}
+    uses: ./.github/workflows/_terraform.yml
+    with:
+      working_directory: aws/${{ matrix.leaf }}
+      apply: false
+
+  apply:
+    needs: detect
+    if: github.event_name == 'push' && needs.detect.outputs.leaves != '[]'
+    strategy:
+      fail-fast: false
+      max-parallel: 1 # serialize applies; explicit ordering can come when leaves gain deps
+      matrix:
+        leaf: ${{ fromJSON(needs.detect.outputs.leaves) }}
+    uses: ./.github/workflows/_terraform.yml
+    with:
+      working_directory: aws/${{ matrix.leaf }}
+      apply: true
+      environment: prod # manual-approval gate

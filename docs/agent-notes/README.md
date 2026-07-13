@@ -7,6 +7,8 @@ These are agent-facing notes, not human runbooks. They prioritise "what does the
 ## Index
 
 - [OVH](ovh.md) — OVH Terraform root module; first provider being built (replaces removed OCI setup)
+- [AWS](aws.md) — AWS Terraform root module + one-time `aws/bootstrap/` onboarding (GitHub OIDC, CI deploy role, S3 state backend)
+- [CI](ci.md) — GitHub Actions plan/apply pipelines and cross-cutting CI conventions (per-provider workflows)
 
 <!--
 When adding a new note, list it here as:
