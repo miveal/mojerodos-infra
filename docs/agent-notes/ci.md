@@ -1,7 +1,7 @@
 # CI
 
 **Status:** partial
-**Verified as of:** 2026-07-11 on commit `f882ef0`
+**Verified as of:** 2026-07-14 on commit `2481c88` (working tree — cloudflare.yml + `_terraform.yml` CF secret uncommitted)
 **Owner of scope (in repo):** `.github/workflows/`
 
 ## What this covers
@@ -10,21 +10,27 @@ conventions. Provider-specific resource decisions live in that provider's note (
 
 ## Current state
 - **`_terraform.yml`** — reusable (`workflow_call`): fmt→init→validate→plan|apply for one leaf
-  (root module). Inputs: `working_directory`, `apply` (bool), `environment` (gate). OIDC auth.
+  (root module). Inputs: `working_directory`, `apply` (bool), `environment` (gate). OIDC auth for
+  the S3 backend + an **optional `cloudflare_api_token` secret** → job env `TF_VAR_cloudflare_api_token`
+  (empty for AWS leaves, which don't init the CF provider; set for `cloudflare/` leaves).
 - **`aws.yml`** — caller. `detect` job diffs changed files → JSON list of changed leaves (any
   `aws/*` dir with an S3 backend, excluding `bootstrap`); `plan` matrix on PRs; `apply` matrix
   on push to `main`, `max-parallel: 1`, gated behind the **`prod` Environment** (manual approval).
+- **`cloudflare.yml`** — caller, same shape as `aws.yml` (changed-leaf matrix over `cloudflare/*`
+  S3-backed dirs; no `bootstrap` to exclude). Passes `secrets.CLOUDFLARE_API_TOKEN` through. NOT
+  yet run live — needs the `CLOUDFLARE_API_TOKEN` repo secret created (edit scope). See [[cloudflare]].
 - **VALIDATED LIVE 2026-07-13** on PR #3: `detect` → `plan (billing)` passed green — OIDC role
   assumption + S3 backend init + plan all work end-to-end; `apply` correctly skipped on the PR.
 - **`main` is branch-protected** (GitHub): PR required before merge, `enforce_admins: true` (even
   the owner can't push direct), force-push + deletion blocked, 0 required approvals (solo repo —
   GitHub blocks self-approval; owner merges manually). Agent `git push` allowed in settings.json
   (direct-to-main is stopped server-side, not by a client deny).
-- No OVH / Cloudflare workflows yet.
+- Cloudflare workflow added (`cloudflare.yml`), not yet live; no OVH workflow yet.
 
 ## Key files
 - `.github/workflows/_terraform.yml` — the shared plan/apply implementation
 - `.github/workflows/aws.yml` — AWS changed-leaf matrix (see [[aws]] for the role + backend)
+- `.github/workflows/cloudflare.yml` — Cloudflare changed-leaf matrix (see [[cloudflare]])
 
 ## Conventions specific to this scope (mirror per new provider)
 - **One reusable workflow, thin per-provider callers.** A caller detects changed leaves and
@@ -51,6 +57,9 @@ conventions. Provider-specific resource decisions live in that provider's note (
 - Posting the PR plan as a comment (workflow logs it today).
 
 ## Recent changes log
+- 2026-07-14 (working tree): added `cloudflare.yml` (changed-leaf matrix) and extended
+  `_terraform.yml` with an optional `cloudflare_api_token` secret → `TF_VAR_cloudflare_api_token`.
+  Additive to AWS (AWS callers omit the secret → empty env, harmless). Not run live yet.
 - 2026-07-13 (PR #4): bumped actions to latest majors (checkout v7, configure-aws-credentials v6,
   setup-terraform v4) resolving the Node20 warning; added `.github/dependabot.yml` (terraform +
   github-actions). Also root `.gitignore` + billing cost-allocation-tag apply fix (see [[aws]]).

@@ -19,6 +19,10 @@ on:
         required: false
         type: string
         default: ""
+    secrets:
+      cloudflare_api_token:
+        description: Cloudflare API token, exposed as TF_VAR_cloudflare_api_token. Only the cloudflare/ leaves need it; AWS callers omit it.
+        required: false
 
 permissions:
   contents: read
@@ -32,6 +36,10 @@ jobs:
   terraform:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
+    # Cloudflare provider auth. Empty for AWS leaves (they don't init the CF provider),
+    # set for cloudflare/ leaves. AWS creds for the S3 backend come via OIDC below.
+    env:
+      TF_VAR_cloudflare_api_token: ${{ secrets.cloudflare_api_token }}
     defaults:
       run:
         working-directory: ${{ inputs.working_directory }}
