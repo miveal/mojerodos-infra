@@ -42,7 +42,7 @@ resource "aws_budgets_budget" "monthly_cost" {
   }
 }
 
-# Detect unusual per-service spend spikes and alert immediately over the impact threshold.
+# Detect unusual per-service spend spikes and alert (daily digest) over the impact threshold.
 resource "aws_ce_anomaly_monitor" "service" {
   name              = "mojerodos-service-monitor"
   monitor_type      = "DIMENSIONAL"
@@ -50,8 +50,11 @@ resource "aws_ce_anomaly_monitor" "service" {
 }
 
 resource "aws_ce_anomaly_subscription" "service" {
-  name             = "mojerodos-anomaly-alerts"
-  frequency        = "IMMEDIATE"
+  name = "mojerodos-anomaly-alerts"
+  # DAILY (not IMMEDIATE): AWS only allows IMMEDIATE frequency with an SNS-topic subscriber.
+  # EMAIL subscribers require DAILY/WEEKLY. We keep email-direct (no SNS, like the budget alerts),
+  # so this is a once-a-day digest of anomalies above the impact threshold.
+  frequency        = "DAILY"
   monitor_arn_list = [aws_ce_anomaly_monitor.service.arn]
 
   subscriber {
