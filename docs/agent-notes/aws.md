@@ -77,6 +77,12 @@ shared with [[ci]].
   meanwhile). Attempted 2026-07-11 but the harness auto-denied the change (user hadn't named it).
 
 ## Recent changes log
+- 2026-07-14: **billing apply FIXED** (two AWS constraints, both surfaced when Cloudflare PR #6
+  re-ran the aws matrix). (1) The DIMENSIONAL/SERVICE anomaly-monitor limit — AWS auto-creates a
+  `Default-Services-Monitor` that occupies the one allowed slot; adopted it via
+  `terraform import aws_ce_anomaly_monitor.service <default-monitor-arn>` (renames in-place to
+  `mojerodos-service-monitor`). (2) `frequency = "IMMEDIATE"` + EMAIL is invalid → switched to
+  `DAILY` (PR #9). Billing `apply` now green (budget + adopted monitor + DAILY subscription).
 - 2026-07-13 (PR #4): billing apply failed on cost-allocation-tag discovery lag → gated
   activation behind `activate_cost_allocation_tags` (default false). Bumped CI actions to latest
   majors, added root `.gitignore` (folded in `aws/.gitignore`) and Dependabot (terraform + actions).
@@ -99,5 +105,14 @@ shared with [[ci]].
   eu-central-1: backend region ≠ provider region, intentional.
 - **`aws_ce_cost_allocation_tag` discovery lag:** activating a tag key errors until AWS has seen
   it on a resource (~24h). First billing apply on the empty account may need a re-run.
+- **Cost Anomaly Detection has two AWS constraints (both hit + resolved 2026-07-14):**
+  (1) **One DIMENSIONAL/SERVICE monitor per account** — AWS auto-creates a `Default-Services-Monitor`
+  that fills the slot, so creating `aws_ce_anomaly_monitor.service` errors `Limit exceeded on
+  dimensional spend monitor creation`. Resolution: adopt the default via `terraform import
+  aws_ce_anomaly_monitor.service <arn>` (find it with `aws ce get-anomaly-monitors --region
+  us-east-1`); it renames in-place to `mojerodos-service-monitor`. (2) **`frequency = "IMMEDIATE"`
+  requires an SNS-topic subscriber** — EMAIL subscribers only work with `DAILY`/`WEEKLY`
+  (`Immediate frequencies only support SNSTopic subscriptions`). We use `DAILY` + email (no SNS,
+  like the budget). Both were surfaced by CF PRs re-triggering the aws matrix — **not CF-related**.
 - Don't rebuild `aws/sms/` — SMS is intentionally off AWS (see SMS decision). PL sender IDs are
   dynamic/non-exclusive and AWS can't hold Polish statutory protection.
