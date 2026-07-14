@@ -1,0 +1,98 @@
+name: cloudflare
+
+# Detect which Cloudflare root modules (leaves) changed, then plan (PR) or apply (main).
+# Cloudflare has no bootstrap leaf to exclude. Provider auth is a repo secret
+# (CLOUDFLARE_API_TOKEN); the S3 state backend still uses AWS OIDC (in _terraform.yml).
+on:
+  pull_request:
+    paths:
+      - "cloudflare/**"
+      - ".github/workflows/cloudflare.yml"
+      - ".github/workflows/_terraform.yml"
+  push:
+    branches: [main]
+    paths:
+      - "cloudflare/**"
+      - ".github/workflows/cloudflare.yml"
+      - ".github/workflows/_terraform.yml"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: cloudflare-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      leaves: ${{ steps.detect.outputs.leaves }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - id: detect
+        name: Detect changed leaves
+        run: |
+          set -euo pipefail
+          # A leaf = a root module (dir with an S3 backend) under cloudflare/.
+          mapfile -t all_leaves < <(grep -rl 'backend "s3"' cloudflare --include='versions.tf' \
+            | xargs -r -n1 dirname | sed 's|^cloudflare/||' | sort -u)
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+          else
+            base="${{ github.event.before }}"
+          fi
+          # Fall back to previous commit if the base sha is missing/unfetchable.
+          if [ -z "$base" ] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            base="$(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)"
+          fi
+          changed="$(git diff --name-only "$base" "${{ github.sha }}")"
+
+          selected=()
+          # A change to the workflows themselves re-runs every leaf.
+          if echo "$changed" | grep -qE '^\.github/workflows/(cloudflare|_terraform)\.yml$'; then
+            selected=("${all_leaves[@]}")
+          else
+            for leaf in "${all_leaves[@]}"; do
+              if echo "$changed" | grep -q "^cloudflare/${leaf}/"; then selected+=("$leaf"); fi
+            done
+          fi
+
+          json="$(printf '%s\n' "${selected[@]:-}" | grep -v '^$' | jq -R . | jq -sc .)"
+          echo "leaves=$json" >> "$GITHUB_OUTPUT"
+          echo "Selected leaves: $json"
+
+  plan:
+    needs: detect
+    if: github.event_name == 'pull_request' && needs.detect.outputs.leaves != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        leaf: ${{ fromJSON(needs.detect.outputs.leaves) }}
+    uses: ./.github/workflows/_terraform.yml
+    with:
+      working_directory: cloudflare/${{ matrix.leaf }}
+      apply: false
+    secrets:
+      cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+  apply:
+    needs: detect
+    if: github.event_name == 'push' && needs.detect.outputs.leaves != '[]'
+    strategy:
+      fail-fast: false
+      max-parallel: 1 # serialize applies
+      matrix:
+        leaf: ${{ fromJSON(needs.detect.outputs.leaves) }}
+    uses: ./.github/workflows/_terraform.yml
+    with:
+      working_directory: cloudflare/${{ matrix.leaf }}
+      apply: true
+      environment: prod # manual-approval gate
+    secrets:
+      cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}

@@ -8,6 +8,7 @@ These are agent-facing notes, not human runbooks. They prioritise "what does the
 
 - [OVH](ovh.md) — OVH Terraform root module; first provider being built (replaces removed OCI setup)
 - [AWS](aws.md) — AWS Terraform root module + one-time `aws/bootstrap/` onboarding (GitHub OIDC, CI deploy role, S3 state backend)
+- [Cloudflare](cloudflare.md) — Cloudflare zones/DNS/tunnel for homelab + mojerodos; the ArgoCD boundary (cert-manager owns `_acme-challenge` TXTs)
 - [CI](ci.md) — GitHub Actions plan/apply pipelines and cross-cutting CI conventions (per-provider workflows)
 
 <!--
