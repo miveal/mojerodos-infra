@@ -77,6 +77,9 @@ shared with [[ci]].
   meanwhile). Attempted 2026-07-11 but the harness auto-denied the change (user hadn't named it).
 
 ## Recent changes log
+- 2026-07-14: noted billing `apply` still failing on main — `aws_ce_anomaly_monitor` dimensional
+  monitor limit (see Gotchas). Surfaced by the Cloudflare PR #6 merge re-running the aws matrix;
+  pre-existing, unresolved. Needs a human import/delete of the existing monitor before apply passes.
 - 2026-07-13 (PR #4): billing apply failed on cost-allocation-tag discovery lag → gated
   activation behind `activate_cost_allocation_tags` (default false). Bumped CI actions to latest
   majors, added root `.gitignore` (folded in `aws/.gitignore`) and Dependabot (terraform + actions).
@@ -99,5 +102,11 @@ shared with [[ci]].
   eu-central-1: backend region ≠ provider region, intentional.
 - **`aws_ce_cost_allocation_tag` discovery lag:** activating a tag key errors until AWS has seen
   it on a resource (~24h). First billing apply on the empty account may need a re-run.
+- **Billing `apply` currently FAILS** (seen on main pushes 2026-07-13 PR #4 and 2026-07-14 PR #6):
+  `aws_ce_anomaly_monitor.service` → `ValidationException: Limit exceeded on dimensional spend
+  monitor creation` (`aws/billing/main.tf:46`). AWS caps dimensional-spend anomaly monitors and one
+  already exists in the account (a prior partial apply, or the account default). Plan is clean;
+  only apply hits it. Fix = import the existing monitor into state or delete the stray one, then
+  re-apply. **NOT Cloudflare-related** — CF PRs merely re-trigger this via the shared `_terraform.yml`.
 - Don't rebuild `aws/sms/` — SMS is intentionally off AWS (see SMS decision). PL sender IDs are
   dynamic/non-exclusive and AWS can't hold Polish statutory protection.

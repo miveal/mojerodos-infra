@@ -1,7 +1,7 @@
 # Cloudflare
 
-**Status:** live — both roots applied (state adopted via first import-apply); code in PR to main
-**Verified as of:** 2026-07-14 on branch `feat/cloudflare-import` (pre-merge; PR open)
+**Status:** live — merged to main (PR #6, `58ce4e6`); state adopted; CI plan+apply green
+**Verified as of:** 2026-07-14 on commit `58ce4e6`
 **Owner of scope (in repo):** `cloudflare/dns/`, `cloudflare/tunnel/`
 
 ## What this covers
@@ -115,9 +115,8 @@ Live IDs + config were pulled with a **read-scoped** token via `import {}` block
 captured to the session scratchpad `cf_dns_records.json` during the session.
 
 ## Open questions / pending decisions
-- **State is adopted** (both roots applied against the shared S3 backend; `imports.tf` deleted).
-  Remaining: land the code in `main` via the open PR so CI plan/apply is authoritative.
-- **`CLOUDFLARE_API_TOKEN` repo secret** created (edit scope). First live CI run happens on this PR.
+- **Done & live.** Both roots adopted + merged to main; CI `plan (dns)`, `plan (tunnel)` green on
+  PR #6 and the prod-gated apply-on-merge succeeded. `CLOUDFLARE_API_TOKEN` repo secret is set.
 - **Zone settings not yet managed** (SSL/TLS mode, Always-HTTPS, min TLS, etc.). Only zones +
   records + tunnel are imported. Add `cloudflare_zone_setting` (or the v5 equivalent) later if
   wanted — pull current values the same generate-config-out way.
@@ -127,6 +126,11 @@ captured to the session scratchpad `cf_dns_records.json` during the session.
   faithfully, not changed.
 
 ## Recent changes log
+- 2026-07-14 (`58ce4e6`, PR #6 squash-merged): **merged + CI-verified live.** `plan (dns)` and
+  `plan (tunnel)` green on the PR; prod-gated apply-on-merge for both roots succeeded (dns no-op;
+  tunnel = the one benign computed `version` re-PUT). Cloudflare is now fully TF-managed on main.
+  (Same push also re-ran the AWS billing apply via the shared `_terraform.yml` — it failed on a
+  pre-existing anomaly-monitor limit, unrelated to CF; see [[aws]].)
 - 2026-07-14 (`feat/cloudflare-import`): **state adopted** — user ran the first import-apply for
   both roots against the shared S3 backend and deleted the `imports.tf` blocks; created the
   `CLOUDFLARE_API_TOKEN` repo secret. The CI-maintenance work turned out to be already squash-merged

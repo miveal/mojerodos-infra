@@ -1,7 +1,7 @@
 # CI
 
 **Status:** partial
-**Verified as of:** 2026-07-14 on branch `feat/cloudflare-import` (cloudflare.yml + `_terraform.yml` CF secret in the open Cloudflare PR)
+**Verified as of:** 2026-07-14 on commit `58ce4e6` (cloudflare.yml live + green)
 **Owner of scope (in repo):** `.github/workflows/`
 
 ## What this covers
@@ -17,8 +17,9 @@ conventions. Provider-specific resource decisions live in that provider's note (
   `aws/*` dir with an S3 backend, excluding `bootstrap`); `plan` matrix on PRs; `apply` matrix
   on push to `main`, `max-parallel: 1`, gated behind the **`prod` Environment** (manual approval).
 - **`cloudflare.yml`** — caller, same shape as `aws.yml` (changed-leaf matrix over `cloudflare/*`
-  S3-backed dirs; no `bootstrap` to exclude). Passes `secrets.CLOUDFLARE_API_TOKEN` through
-  (repo secret exists). First live run is the open Cloudflare PR. See [[cloudflare]].
+  S3-backed dirs; no `bootstrap` to exclude). Passes `secrets.CLOUDFLARE_API_TOKEN` through.
+  **VALIDATED LIVE 2026-07-14 on PR #6:** `plan (dns)` + `plan (tunnel)` green, apply-on-merge
+  green. Proves the CF-token-secret path + shared S3 backend (AWS OIDC) end-to-end. See [[cloudflare]].
 - **VALIDATED LIVE 2026-07-13** on PR #3: `detect` → `plan (billing)` passed green — OIDC role
   assumption + S3 backend init + plan all work end-to-end; `apply` correctly skipped on the PR.
 - **`main` is branch-protected** (GitHub): PR required before merge, `enforce_admins: true` (even
@@ -57,9 +58,11 @@ conventions. Provider-specific resource decisions live in that provider's note (
 - Posting the PR plan as a comment (workflow logs it today).
 
 ## Recent changes log
-- 2026-07-14 (working tree): added `cloudflare.yml` (changed-leaf matrix) and extended
-  `_terraform.yml` with an optional `cloudflare_api_token` secret → `TF_VAR_cloudflare_api_token`.
-  Additive to AWS (AWS callers omit the secret → empty env, harmless). Not run live yet.
+- 2026-07-14 (`58ce4e6`, PR #6): added `cloudflare.yml` + extended `_terraform.yml` with the
+  optional `cloudflare_api_token` secret. Ran green live (plan + apply). **Side effect:** because
+  the PR edited the shared `_terraform.yml`, `aws.yml` re-ran ALL aws leaves on merge → the billing
+  `apply` fired on main and **failed on a pre-existing anomaly-monitor limit** (not CF-related; see
+  [[aws]]). Editing `_terraform.yml` will always re-trigger every provider's leaves.
 - 2026-07-13 (PR #4): bumped actions to latest majors (checkout v7, configure-aws-credentials v6,
   setup-terraform v4) resolving the Node20 warning; added `.github/dependabot.yml` (terraform +
   github-actions). Also root `.gitignore` + billing cost-allocation-tag apply fix (see [[aws]]).
