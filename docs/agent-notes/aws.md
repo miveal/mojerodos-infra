@@ -1,7 +1,7 @@
 # AWS
 
-**Status:** partial — `bootstrap` APPLIED + state in S3; `billing` built, not applied
-**Verified as of:** 2026-07-13 on commit `f882ef0` (working tree; aws/ still uncommitted)
+**Status:** partial — `bootstrap` APPLIED; `billing` APPLIED (green 2026-07-14); `identity/dev` BUILT, not applied (PR #10 pending)
+**Verified as of:** 2026-07-17 on commit `6365548` + `aws/identity/dev` on PR branch `feat/aws-bedrock-dev-app-access`
 **Owner of scope (in repo):** `aws/` (`bootstrap/`, `billing/`, …)
 
 ## What this covers
@@ -27,9 +27,17 @@ shared with [[ci]].
   `activate_cost_allocation_tags` (bool, default `false`) — first apply skips it; flip `true` in a
   follow-up apply once keys are discovered (>24h). Re-apply after that fix creates the anomaly
   monitor + subscription too.
+- **`aws/identity/dev/`** — BUILT 2026-07-17 (PR #10, branch `feat/aws-bedrock-dev-app-access`),
+  not applied. First slice of the `identity/` component: EU-residency permissions boundary
+  `mojerodos-dev-app-boundary`, Bedrock invocation grant `mojerodos-dev-app-bedrock-invoke`
+  (`eu.*` inference profiles + foundation models, `aws:RequestedRegion eu-*` condition), and the
+  static-key user `mojerodos-dev-app` (key minted manually — never in TF state; delivered via
+  homelab sops Secret). First consumer: Ogrodniczy advisor chat (hub agent#887 Wave B, core
+  v1.59.0). Roles Anywhere + Bedrock guardrails/invocation logging deliberately NOT in scope
+  (see Parked). `validate` green; lock committed (linux_amd64 + darwin_arm64).
 - `.github/workflows/aws.yml` + `_terraform.yml` — changed-leaf matrix, OIDC, prod approval gate.
-- Both roots pass `terraform validate` (via a temp TF 1.10.5 binary — see gotcha). Cross-
-  platform `.terraform.lock.hcl` committed (linux_amd64 + darwin).
+- All three roots pass `terraform validate`. Cross-platform `.terraform.lock.hcl` committed
+  (linux_amd64 + darwin).
 
 ## Decisions taken (with why)
 - **Repo → `mojerodos-infra`; product slug `mojerodos`.** `miveal/…` is provenance only (OIDC
@@ -44,6 +52,25 @@ shared with [[ci]].
   (s3-bucket module floor), tls `~> 4.0`.
 - **Standalone account (no Org)** → EU-residency guardrails go on IAM permission boundaries, not SCPs.
 - **App auth = IAM Roles Anywhere** (homelab is NAT'd, outbound-only) — PARKED until the app is ready.
+- **Static-key user for dev app AWS access = explicit STOPGAP (2026-07-17).** The `identity/`
+  Roles-Anywhere trigger ("build when the app starts calling AWS") HAS fired — Wave B advisor
+  chat (core v1.59.0) is the first live caller — but RA needs homelab-side CA/cert plumbing
+  (novel infra, own PR). Chosen instead: least-privilege static-key user, EU-only enforced
+  twice (policy condition AND permissions boundary), key minted manually so the secret never
+  enters TF state, delivered via the homelab sops Secret. Retire the user when the RA role
+  lands in the same root.
+- **IAM lives in `identity/`, not `bedrock/` (2026-07-17, PR #10 review).** PR #10 originally
+  shipped all three IAM resources as an `aws/bedrock/dev/` leaf. Corrected: `identity/` owns the
+  **principal and its grants** (boundary, app user/role, per-service invoke policies);
+  `bedrock/` will own only **service-side** config (guardrails, model-invocation logging). The
+  parked plan's "app policy" line under `bedrock/` is superseded — a grant is attached to a
+  principal, so it belongs with it. The alternative (policy in `bedrock/`, principal in
+  `identity/`) would need a cross-state name lookup AND an apply ordering the CI leaf matrix
+  can't express: it sorts leaves alphabetically, so `bedrock/dev` would apply before
+  `identity/dev` and the user lookup would fail on first apply.
+- **Principal named for what it IS, not what it calls:** `mojerodos-dev-app`, not
+  `mojerodos-dev-bedrock` — it survives `identity/` growing non-Bedrock grants. Grants carry the
+  service in the detail segment (`mojerodos-dev-app-bedrock-invoke`).
 - **SMS is NOT on AWS.** PL sender IDs are dynamic (non-exclusive) and AWS can't hold Poland's
   statutory sender-ID protection (integrator-bound; AWS isn't a UKE-listed integrator), so AWS
   gives zero brand/anti-phishing protection. There's also no Terraform surface for SMS providers.
@@ -54,10 +81,15 @@ shared with [[ci]].
   built then removed once this became clear.
 
 ## Parked (planned, deliberately NOT scaffolded yet)
-- `identity/` — IAM Roles Anywhere (trust anchor = homelab CA), `mojerodos-app` role, EU-residency
-  permission boundary. Build when the app starts calling AWS.
-- `bedrock/` — guardrails + invocation logging + app policy; MUST use the `eu.` inference profile
-  only (ban `Global`), whitelist models by retention behaviour (Claude Fable 5 / GPT-5.x retain ~30d).
+- `identity/` — PARTLY BUILT 2026-07-17: `identity/dev` ships the boundary + app user + Bedrock
+  grant (see Current state). Still parked within it: **IAM Roles Anywhere** (trust anchor =
+  homelab CA) + the `mojerodos-dev-app` *role* that replaces the static-key user. The RA trigger
+  ("build when the app starts calling AWS") FIRED 2026-07-17 and is bridged by the static-key
+  stopgap; RA itself waits on homelab CA plumbing. No `identity/prod` until a prod app exists.
+- `bedrock/` — **service-side only**: guardrails + model-invocation logging. (The app *grant* is
+  not part of this component — it lives in `identity/`, see Decisions.) MUST use the `eu.`
+  inference profile only (ban `Global`), whitelist models by retention behaviour (Claude Fable 5
+  / GPT-5.x retain ~30d).
 - `network/` + `rds/` — VPC only when RDS/compute lands. `eu-central-1-waw-1a` Local Zone stays
   reserved/unused (regional services don't touch it).
 
@@ -77,6 +109,19 @@ shared with [[ci]].
   meanwhile). Attempted 2026-07-11 but the harness auto-denied the change (user hadn't named it).
 
 ## Recent changes log
+- 2026-07-17 (PR #10 review): **moved the leaf `aws/bedrock/dev` → `aws/identity/dev`** and
+  renamed its resources (`mojerodos-dev-bedrock*` → `mojerodos-dev-app*`) — IAM belongs to the
+  `identity/` component, `bedrock/` is service-side only (see Decisions). Backend key moved to
+  `aws/identity/dev/terraform.tfstate`; `Component` tag → `identity`; boundary + invoke policy
+  now have separate outputs. Nothing was applied under the old path, so no state migration or
+  resource rename in AWS is involved — the move is free.
+- 2026-07-17 (PR branch `feat/aws-bedrock-dev-app-access`): built the dev app IAM slice — EU-only
+  Bedrock invocation policy + permissions boundary + static-key user for the first live app
+  caller (Ogrodniczy advisor chat, agent#887 Wave B / core v1.59.0). `validate` green, lock
+  committed (linux_amd64 + darwin_arm64). NOT applied. Post-apply manual: Bedrock model access
+  (Nova Lite + Claude Haiku 4.5 minimum; Sonnet 4.6 + Opus 4.6 prep) + key mint
+  (`aws iam create-access-key`) + homelab sops Secret. Deviation from parked plan (static key
+  vs Roles Anywhere) flagged in the PR for human ratification.
 - 2026-07-14: **billing apply FIXED** (two AWS constraints, both surfaced when Cloudflare PR #6
   re-ran the aws matrix). (1) The DIMENSIONAL/SERVICE anomaly-monitor limit — AWS auto-creates a
   `Default-Services-Monitor` that occupies the one allowed slot; adopted it via
@@ -98,8 +143,9 @@ shared with [[ci]].
   SMSAPI.pl app-side, not AWS (see SMS decision) — this also dropped the only `awscc` usage.
 
 ## Gotchas
-- **Local `terraform` is 1.6.5** — too old to `init` (`>= 1.10` required). Validated with a
-  throwaway 1.10.5 binary; user must upgrade before running bootstrap.
+- ~~Local `terraform` is 1.6.5 — too old to `init`~~ RESOLVED: local is **1.15.8** as of
+  2026-07-17 (`identity/dev` validated with it directly; CI still pins 1.10.5 via `TF_VERSION`
+  in `_terraform.yml`).
 - Backend blocks can't interpolate — bucket/region hardcoded in every `versions.tf`; keep in sync.
 - **Billing lives in us-east-1** (global service control-plane) even though the state bucket is
   eu-central-1: backend region ≠ provider region, intentional.

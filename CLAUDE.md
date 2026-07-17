@@ -21,7 +21,8 @@ backend + state — small blast radius per `apply`. Account-global plumbing (sta
 CI identity, billing, the SMS sender ID) is a single root that skips the env layer.
 
 - `aws/`        — AWS (live). `bootstrap/` (manual: OIDC + CI role + central state bucket),
-                  `billing/`; `bedrock/`, `identity/`, `network/`, `rds/` planned.
+                  `billing/`, `identity/<env>/` (app principals, grants, EU-residency boundary);
+                  `bedrock/` (service-side: guardrails + invocation logging), `network/`, `rds/` planned.
 - `ovh/`        — OVH root module(s) (planned) — will use the AWS S3 bucket as its state backend
 - `cloudflare/` — Cloudflare root module (planned; DNS)
 - `<provider>/modules/` — shared child modules, created ONLY when a real multi-call composite emerges
