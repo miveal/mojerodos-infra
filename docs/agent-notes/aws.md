@@ -1,7 +1,7 @@
 # AWS
 
-**Status:** partial — `bootstrap` APPLIED; `billing` APPLIED (green 2026-07-14); `identity/dev` BUILT, not applied (PR #10 pending)
-**Verified as of:** 2026-07-17 on commit `6365548` + `aws/identity/dev` on PR branch `feat/aws-bedrock-dev-app-access`
+**Status:** partial — `bootstrap` APPLIED; `billing` APPLIED (green 2026-07-14); `identity/dev` APPLIED (PR #10 merged `ff8d564`, prod-gated apply green; principal live — SigV4 probes authenticate)
+**Verified as of:** 2026-07-17 on commit `ff8d564` + mantle-access extension on PR branch `feat/aws-identity-dev-mantle-access`
 **Owner of scope (in repo):** `aws/` (`bootstrap/`, `billing/`, …)
 
 ## What this covers
@@ -109,6 +109,18 @@ shared with [[ci]].
   meanwhile). Attempted 2026-07-11 but the harness auto-denied the change (user hadn't named it).
 
 ## Recent changes log
+- 2026-07-17 (PR branch `feat/aws-identity-dev-mantle-access`): **bedrock-mantle access extension.**
+  Live probe (SigV4, app creds) against `bedrock-mantle.eu-central-1.api.aws/v1/models` returned a
+  clean IAM denial: `bedrock-mantle:ListModels` on `project/default`, blocked BY THE BOUNDARY —
+  mantle is a separate IAM namespace (`bedrock-mantle:*`), so the EU-invoke-only ceiling held
+  exactly as designed. Extension adds `bedrock-mantle:CreateInference` + `ListModels` on
+  `project/*` (same `eu-*` condition; `CallWithBearerToken` deliberately withheld — SigV4 only)
+  to the shared grant/boundary doc. WHY: (a) mantle quota pool is separate from the zeroed
+  bedrock-runtime pool (Dariusz ran Gemma 4 E2B in the mantle workbench while runtime throttles
+  at 0), (b) mantle serves the Anthropic Messages API in eu-central-1 WITHOUT the Anthropic FTU
+  form — a candidate unblock rail for advisor chat while the runtime-quota support case pends.
+  RODO note: mantle Responses API stores conversations 30d by default (`store:true`) — app use
+  must set `store:false` or use stateless surfaces; recorded in the policy comment.
 - 2026-07-17 (PR #10 review): **moved the leaf `aws/bedrock/dev` → `aws/identity/dev`** and
   renamed its resources (`mojerodos-dev-bedrock*` → `mojerodos-dev-app*`) — IAM belongs to the
   `identity/` component, `bedrock/` is service-side only (see Decisions). Backend key moved to
