@@ -36,6 +36,34 @@ data "aws_iam_policy_document" "bedrock_invoke_eu" {
       values   = ["eu-*"]
     }
   }
+
+  # bedrock-mantle endpoint (bedrock-mantle.<region>.api.aws) — a SEPARATE IAM namespace
+  # from bedrock:* (probe-verified 2026-07-17: the denial cited bedrock-mantle:ListModels
+  # on project/default and named this boundary — the ceiling worked as designed).
+  # CreateInference covers all three API surfaces the endpoint serves (OpenAI Responses,
+  # OpenAI Chat Completions, Anthropic Messages); ListModels covers GET /v1/models.
+  # bedrock-mantle:CallWithBearerToken is deliberately NOT granted — SigV4 only, no
+  # Bedrock API keys for this principal. Same eu-* residency condition as above; note the
+  # mantle Responses API stores conversations 30 days by DEFAULT (store:true) — any app
+  # use must set store:false or use the stateless Messages/Chat Completions surfaces.
+  statement {
+    sid = "MantleEUInferenceOnly"
+
+    actions = [
+      "bedrock-mantle:CreateInference",
+      "bedrock-mantle:ListModels",
+    ]
+
+    resources = [
+      "arn:aws:bedrock-mantle:*:*:project/*",
+    ]
+
+    condition {
+      test     = "StringLike"
+      variable = "aws:RequestedRegion"
+      values   = ["eu-*"]
+    }
+  }
 }
 
 resource "aws_iam_policy" "bedrock_invoke_eu" {
