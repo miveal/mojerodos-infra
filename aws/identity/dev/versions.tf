@@ -10,7 +10,7 @@ terraform {
 
   backend "s3" {
     bucket       = "mojerodos-tfstate"
-    key          = "aws/bedrock/dev/terraform.tfstate"
+    key          = "aws/identity/dev/terraform.tfstate"
     region       = "eu-central-1"
     encrypt      = true
     use_lockfile = true
